@@ -39,8 +39,8 @@
 // items
 #define MAX_ITEMS 100
 #define INV_SIZE 30
-#define MAGNET_RADIUS 80.0f
-#define MAGNET_ACCEL  1800.0f
+#define MAGNET_RADIUS 64.0f
+#define MAGNET_ACCEL  10000.0f
 #define ITEM_DRAG     3.0f
 
 
@@ -664,15 +664,15 @@ int main(void) {
     .seed = 69420
   };
   spawn_item(&game, (Vector2){100, 500}, ITEM_FISH,     11);
-  spawn_item(&game, (Vector2){100, 600}, ITEM_CHEESE,   15);
-  spawn_item(&game, (Vector2){200, 500}, ITEM_SNOWBALL, 24);
-  spawn_item(&game, (Vector2){200, 600}, ITEM_APPLE,     5);
-  spawn_item(&game, (Vector2){300, 600}, ITEM_COIN,    344);
-  spawn_item(&game, (Vector2){300, 500}, ITEM_KEY,       3);
-  spawn_item(&game, (Vector2){400, 600}, ITEM_GEM,       3);
-  spawn_item(&game, (Vector2){400, 500}, ITEM_MUSHROOM,  8);
-  spawn_item(&game, (Vector2){500, 600}, ITEM_POTION,    2);
-  spawn_item(&game, (Vector2){500, 500}, ITEM_LOG,      10);
+  spawn_item(&game, (Vector2){110, 500}, ITEM_CHEESE,   15);
+  spawn_item(&game, (Vector2){100, 510}, ITEM_SNOWBALL, 24);
+  spawn_item(&game, (Vector2){125, 495}, ITEM_APPLE,     5);
+  spawn_item(&game, (Vector2){90,  500}, ITEM_COIN,    344);
+  spawn_item(&game, (Vector2){95,  530}, ITEM_KEY,       3);
+  spawn_item(&game, (Vector2){75,  470}, ITEM_GEM,       3);
+  spawn_item(&game, (Vector2){85,  495}, ITEM_MUSHROOM,  8);
+  spawn_item(&game, (Vector2){100, 480}, ITEM_POTION,    2);
+  spawn_item(&game, (Vector2){80,  520}, ITEM_LOG,      10);
 
   while (!WindowShouldClose()) {
     float dt = GetFrameTime();
