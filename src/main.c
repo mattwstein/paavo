@@ -1,5 +1,7 @@
 #include "raylib.h"
 #include <raymath.h>
+#include "rlgl.h"
+#include <raymath.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -40,27 +42,23 @@
 #define MAX_ITEMS 100
 #define INV_SIZE 30
 #define MAGNET_RADIUS 64.0f
-#define MAGNET_ACCEL  10000.0f
+#define MAGNET_ACCEL  15000.0f
 #define ITEM_DRAG     3.0f
 
 
-typedef enum { ITEM_FISH, ITEM_CHEESE, ITEM_SNOWBALL, ITEM_APPLE, ITEM_COIN,
-  ITEM_KEY, ITEM_GEM, ITEM_MUSHROOM, ITEM_POTION, ITEM_LOG,
+typedef enum { ITEM_FISH, ITEM_RAW_IRON, ITEM_IRON_BAR, ITEM_RAW_COPPER, ITEM_COPPER_BAR,
+  ITEM_METAL_SCRAP, 
   ITEM_COUNT } ItemType;
 
 typedef struct { const char* name; int max_stack; } ItemDef;
 
 static const ItemDef ITEM_DEFS[ITEM_COUNT] = {
-  [ITEM_FISH]     = { "fish",     99 },
-  [ITEM_CHEESE]   = { "cheese",   99 },
-  [ITEM_SNOWBALL] = { "snowball", 16 },
-  [ITEM_APPLE]    = { "apple",    99 },
-  [ITEM_COIN]     = { "coin",    999 },
-  [ITEM_KEY]      = { "key",       1 },
-  [ITEM_GEM]      = { "gem",      99 },
-  [ITEM_MUSHROOM] = { "mushroom", 99 },
-  [ITEM_POTION]   = { "potion",   16 },
-  [ITEM_LOG]      = { "log",      99 },
+  [ITEM_FISH]      = { "fish",         99 },
+  [ITEM_RAW_IRON]       = { "raw iron",     99 },
+  [ITEM_IRON_BAR]       = { "iron bar",     99 },
+  [ITEM_RAW_COPPER]     = { "raw copper",   99 },
+  [ITEM_COPPER_BAR]     = { "copper bar",   99 },
+  [ITEM_METAL_SCRAP]    = { "metal scrap",  99 },
 };
 
 typedef struct { ItemType type; int count; } ItemStack;
@@ -74,10 +72,10 @@ typedef struct { const char* name; float drag_multiplier; Color color; } TileDef
 typedef enum { TILE_WATER, TILE_ICE, TILE_SNOW, TILE_ROCK, TILE_COUNT } TileType;
 
 static const TileDef TILE_DEFS[TILE_COUNT] = {
-  [TILE_WATER] = { "water", 1.0f, { 30, 80, 160, 255 } },
-  [TILE_ICE]   = { "ice",   0.3f, { 170, 220, 240, 255 } },
-  [TILE_SNOW]  = { "snow",  1.0f, { 235, 240, 245, 255 } },
-  [TILE_ROCK]  = { "rock",  1.0f, { 90, 90, 100, 255 } },
+  [TILE_WATER] = { "water", 1.0f, { 53, 83, 99, 255 } },
+  [TILE_ICE]   = { "ice",   0.15f, { 153, 184, 190, 255 } },
+  [TILE_SNOW]  = { "snow",  1.0f, { 218, 220, 216, 255 } },
+  [TILE_ROCK]  = { "rock",  1.0f, { 91, 91, 87, 255 } },
 };
 
 // objects
@@ -145,13 +143,13 @@ void debug_box(Vector2 pos, const char* fmt, ...) {
 
 void paavo_draw_debug(const Paavo* p) {
   debug_box(p->pos, "Paavo\nx: %.2f\ny: %.2f\nspd: %.1f\nsliding: %s",
-      p->pos.x, p->pos.y, Vector2Length(p->vel), p->sliding ? "yes" : "no");
+      p->pos.x / TILE_SIZE, p->pos.y / TILE_SIZE, Vector2Length(p->vel), p->sliding ? "yes" : "no");
 }
 
 void item_draw_debug(const WorldItem* it) {
   if (!it->active) return;
   debug_box(it->pos, "%s\nx: %.2f\ny: %.2f\ncount: %d",
-      ITEM_DEFS[it->stack.type].name, it->pos.x, it->pos.y, it->stack.count);
+      ITEM_DEFS[it->stack.type].name, it->pos.x / TILE_SIZE, it->pos.y / TILE_SIZE, it->stack.count);
 }
 
 
@@ -159,70 +157,64 @@ void item_draw_icon(ItemType type, Vector2 pos) {
   float x = pos.x, y = pos.y;
 
   switch (type) {
-    case ITEM_FISH:
-      DrawEllipse(x, y, 10, 6, GRAY);
+    case ITEM_FISH: {
+      Color body = { 125, 165, 185, 255 };
+      DrawEllipse(x + 1, y + 1, 10, 6, ColorAlpha(BLACK, 0.25f));
       DrawTriangle((Vector2){ x - 16, y - 6 }, (Vector2){ x - 16, y + 6 },
-          (Vector2){ x - 6, y }, GRAY);
+          (Vector2){ x - 6, y }, (Color){ 85, 125, 150, 255 });
+      DrawEllipse(x, y, 10, 6, body);
+      DrawLineEx((Vector2){ x - 5, y }, (Vector2){ x + 6, y }, 1.2f,
+          (Color){ 190, 215, 220, 255 });
+      DrawCircleV((Vector2){ x + 6, y - 1 }, 1.4f, WHITE);
+      DrawCircleV((Vector2){ x + 6.3f, y - 1 }, 0.7f, BLACK);
+    } break;
+
+    case ITEM_RAW_IRON: {
+      Color metal = { 115, 125, 135, 255 };
+      DrawPoly((Vector2){ x, y + 1 }, 6, 10, 8, ColorAlpha(BLACK, 0.25f));
+      DrawPoly((Vector2){ x, y }, 6, 10, 8, metal);
+    } break;
+
+    case ITEM_IRON_BAR: {
+      Color dark = { 65, 75, 85, 255 };
+      DrawRectanglePro((Rectangle){ x, y + 2, 22, 10 }, (Vector2){ 11, 5 },
+          -12, ColorAlpha(BLACK, 0.25f));
+      DrawRectanglePro((Rectangle){ x, y, 22, 10 }, (Vector2){ 11, 5 },
+          -12, dark);
+      DrawLineEx((Vector2){ x - 7, y + 2 }, (Vector2){ x + 8, y - 2 }, 1.2f,
+          (Color){ 115, 130, 140, 255 });
+    } break;
+
+    case ITEM_RAW_COPPER: {
+      Color copper = { 180, 105, 65, 255 };
+      DrawPoly((Vector2){ x, y + 1 }, 6, 10, 8, ColorAlpha(BLACK, 0.25f));
+      DrawPoly((Vector2){ x, y }, 6, 10, 8, copper);
+    } break;
+
+    case ITEM_COPPER_BAR: {
+      Color dark = { 125, 65, 40, 255 };
+      DrawRectanglePro((Rectangle){ x, y + 2, 22, 10 }, (Vector2){ 11, 5 },
+          -12, ColorAlpha(BLACK, 0.25f));
+      DrawRectanglePro((Rectangle){ x, y, 22, 10 }, (Vector2){ 11, 5 },
+          -12, dark);
+      DrawLineEx((Vector2){ x - 7, y + 2 }, (Vector2){ x + 8, y - 2 }, 1.2f,
+          (Color){ 190, 105, 65, 255 });
+    } break;
+
+    case ITEM_METAL_SCRAP: {
+      Color metal = { 105, 115, 125, 255 };
+      DrawTriangle((Vector2){ x - 11, y - 5 }, (Vector2){ x + 10, y + 5 },
+          (Vector2){ x + 7, y - 8 }, metal);
+      DrawTriangle((Vector2){ x - 11, y - 5 }, (Vector2){ x - 3, y + 8 },
+          (Vector2){ x + 10, y + 5 }, (Color){ 70, 80, 90, 255 });
+      DrawLineEx((Vector2){ x - 7, y - 3 }, (Vector2){ x + 5, y - 5 }, 1.5f,
+          (Color){ 190, 195, 195, 255 });
+      DrawLineEx((Vector2){ x - 2, y + 5 }, (Vector2){ x + 7, y + 3 }, 1.2f,
+          (Color){ 45, 55, 65, 255 });
+    } break;
+
+    case ITEM_COUNT:
       break;
-
-    case ITEM_CHEESE: {
-                        Color holes = (Color){ 214, 160, 0, 255 };
-                        Vector2 a = { x + 12, y - 8 }, b = { x - 12, y + 8 }, c = { x + 12, y + 8 };
-                        DrawTriangle(a, b, c, YELLOW);
-                        DrawCircleV((Vector2){ x + 7, y + 2 }, 2.5f, holes);
-                        DrawCircleV((Vector2){ x + 1, y + 4 }, 1.5f, holes);
-                        DrawCircleV((Vector2){ x + 9, y - 2 }, 1.5f, holes);
-                        DrawTriangleLines(a, b, c, holes);
-                      } break;
-
-    case ITEM_SNOWBALL:
-                      DrawCircleV(pos, 5, RAYWHITE);
-                      break;
-
-    case ITEM_APPLE:
-                      DrawCircleV(pos, 8, RED);
-                      DrawRectangle(x - 1, y - 12, 2, 5, BROWN);
-                      DrawEllipse(x + 4, y - 10, 4, 2, GREEN);
-                      break;
-
-    case ITEM_COIN:
-                      DrawCircleV(pos, 8, GOLD);
-                      DrawCircleLinesV(pos, 5, ORANGE);
-                      break;
-
-    case ITEM_KEY:
-                      DrawRing((Vector2){ x - 9, y }, 2, 5, 0, 360, 16, GOLD);
-                      DrawRectangle(x - 4, y - 1, 16, 3, GOLD);
-                      DrawRectangle(x + 6, y + 2, 2, 4, GOLD);
-                      DrawRectangle(x + 10, y + 2, 2, 3, GOLD);
-                      break;
-
-    case ITEM_GEM:
-                      DrawPoly(pos, 4, 10, 0, PURPLE);
-                      DrawPoly(pos, 4, 4, 0, ColorAlpha(WHITE, 0.5f));
-                      break;
-
-    case ITEM_MUSHROOM:
-                      DrawRectangle(x - 3, y - 1, 6, 9, BEIGE);
-                      DrawCircleSector((Vector2){ x, y - 1 }, 10, 180, 360, 16, RED);
-                      DrawCircle(x - 4, y - 5, 2, RAYWHITE);
-                      DrawCircle(x + 3, y - 7, 2, RAYWHITE);
-                      break;
-
-    case ITEM_POTION:
-                      DrawCircleV((Vector2){ x, y + 3 }, 9, LIME);
-                      DrawRectangle(x - 3, y - 9, 6, 6, LIGHTGRAY);
-                      DrawRectangle(x - 4, y - 12, 8, 3, BROWN);
-                      DrawCircle(x - 3, y + 1, 2, ColorAlpha(WHITE, 0.6f));
-                      break;
-
-    case ITEM_LOG:
-                      DrawRectangle(x - 12, y - 6, 24, 12, BROWN);
-                      DrawEllipse(x + 12, y, 4, 6, BEIGE);
-                      DrawEllipseLines(x + 12, y, 2, 3, BROWN);
-                      break;
-
-    case ITEM_COUNT: break;
   }
 }
 
@@ -276,12 +268,6 @@ bool inv_can_add(const ItemStack inv[], ItemType type) {
     if (inv[i].type == type && inv[i].count < max) return true;
   }
   return false;
-}
-
-static uint32_t hash2(int x, int y) {
-  uint32_t h = (uint32_t)x * 374761393u + (uint32_t)y * 668265263u;
-  h = (h ^ (h >> 13)) * 1274126177u;
-  return h ^ (h >> 16);
 }
 
 static uint32_t hash3(int x, int y, uint32_t seed) {
@@ -425,7 +411,7 @@ bool object_blocks(int tx, int ty, uint32_t seed) {
 }
 
 Color ColorInvert(Color c) {
-    return (Color){ 255 - c.r, 255 - c.g, 255 - c.b, c.a };
+  return (Color){ 255 - c.r, 255 - c.g, 255 - c.b, c.a };
 }
 
 void draw_selection(const Game* g) {
@@ -438,16 +424,80 @@ void draw_selection(const Game* g) {
   DrawRectangleLines(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE, c);
 }
 
+static unsigned char clamp_u8(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
 void draw_tiles(const Game* g) {
   Vector2 tl = GetScreenToWorld2D((Vector2){ 0, 0 }, g->cam);
   Vector2 br = GetScreenToWorld2D((Vector2){ (float)GetScreenWidth(), (float)GetScreenHeight() }, g->cam);
   int x0 = (int)floorf(tl.x / TILE_SIZE), x1 = (int)floorf(br.x / TILE_SIZE);
   int y0 = (int)floorf(tl.y / TILE_SIZE), y1 = (int)floorf(br.y / TILE_SIZE);
 
-  for (int ty = y0; ty <= y1; ty++)
-    for (int tx = x0; tx <= x1; tx++)
-      DrawRectangle(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE,
-          TILE_DEFS[tile_at(tx, ty, g->seed)].color);
+  for (int ty = y0; ty <= y1; ty++) {
+    for (int tx = x0; tx <= x1; tx++) {
+      TileType type = tile_at(tx, ty, g->seed);
+      DrawRectangle(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE, TILE_DEFS[type].color);
+    }
+  }
+}
+
+static float rnd01(uint32_t s, int i) { return (hash3(i, 0, s) & 0xFFFF) / 65535.0f; }
+
+static Color shade(Color c, float k) {
+  int d = (int)(k * 40.0f);
+  return (Color){ clamp_u8(c.r + d), clamp_u8(c.g + d), clamp_u8(c.b + d + (k < 0 ? 3 : 0)), 255 };
+}
+
+static void fill_tri(Vector2 a, Vector2 b, Vector2 c, Color col) {
+  float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  if (cross > 0) DrawTriangle(a, c, b, col);
+  else           DrawTriangle(a, b, c, col);
+}
+
+static void draw_rock(Rectangle r, Color base, uint32_t rs) {
+  Vector2 c = { r.x + r.width * 0.5f, r.y + r.height * 0.5f };
+  float rx = r.width * 0.5f - 3.0f, ry = r.height * 0.5f - 3.0f;
+  int n = (r.width > TILE_SIZE * 1.5f) ? 11 : 8;
+
+  Vector2 v[11], u[11];
+  for (int i = 0; i < n; i++) {
+    float a = (i + (rnd01(rs, i) - 0.5f) * 0.5f) * 2.0f * PI / n;
+    float k = 0.78f + 0.22f * rnd01(rs, i + 32);
+    v[i] = (Vector2){ c.x + cosf(a) * rx * k, c.y + sinf(a) * ry * k };
+  }
+
+  Vector2 uc = { c.x - rx * 0.14f, c.y - ry * 0.14f };
+  for (int i = 0; i < n; i++)
+    u[i] = (Vector2){ uc.x + (v[i].x - c.x) * 0.58f, uc.y + (v[i].y - c.y) * 0.58f };
+
+  DrawEllipse((int)c.x + 4, (int)c.y + 5, rx * 1.05f, ry * 0.95f, ColorAlpha(BLACK, 0.25f));
+
+  for (int i = 0; i < n; i++) {
+    int j = (i + 1) % n;
+    float mx = (v[i].x + v[j].x) * 0.5f - c.x, my = (v[i].y + v[j].y) * 0.5f - c.y;
+    float len = sqrtf(mx * mx + my * my);
+    float light = len > 0.001f ? (-mx - my) * 0.7071f / len : 0.0f;
+    Color col = shade(base, light * 0.9f + (rnd01(rs, i + 64) - 0.5f) * 0.25f);
+    fill_tri(v[i], v[j], u[j], col);
+    fill_tri(v[i], u[j], u[i], col);
+  }
+
+  Color top = shade(base, 0.35f), outline = shade(base, -1.1f);
+  for (int i = 0; i < n; i++) fill_tri(uc, u[i], u[(i + 1) % n], top);
+  for (int i = 0; i < n; i++) DrawLineEx(v[i], v[(i + 1) % n], 1.0f, outline);
+
+  if (n > 9) {
+    int a = (int)(rnd01(rs, 90) * n) % n;
+    Vector2 e = { u[a].x * 0.55f + v[a].x * 0.45f, u[a].y * 0.55f + v[a].y * 0.45f };
+    DrawLineEx(u[a], e, 1.0f, shade(base, -0.9f));
+  }
+
+  int specks = (n > 9) ? 4 : 2;
+  for (int i = 0; i < specks; i++) {
+    float a = rnd01(rs, 100 + i) * 2.0f * PI;
+    float rr = sqrtf(rnd01(rs, 120 + i)) * 0.7f;
+    DrawRectangle((int)(uc.x + cosf(a) * rx * 0.58f * rr), (int)(uc.y + sinf(a) * ry * 0.58f * rr), 2, 2,
+        (i % 2 == 0) ? shade(base, -0.45f) : shade(base, 0.75f));
+  }
 }
 
 void draw_objects(const Game* g) {
@@ -461,32 +511,18 @@ void draw_objects(const Game* g) {
       PlacedObject p = object_in_cell(cx, cy, g->seed);
       if (p.type == OBJECT_COUNT) continue;
       const ObjectDef* d = &OBJECT_DEFS[p.type];
-      DrawRectangle(p.tx * TILE_SIZE + 2, p.ty * TILE_SIZE + 2,
-          (int)d->size.x * TILE_SIZE - 4, (int)d->size.y * TILE_SIZE - 4, d->color);
-    }
-  }
-}
 
-void draw_stars(const Game* game) {
-  const float cell = 120.0f;
+      switch (p.type) {
+        case OBJECT_ROCK_LARGE:
+        case OBJECT_ROCK_SMALL: {
+          Rectangle r = { (float)(p.tx * TILE_SIZE), (float)(p.ty * TILE_SIZE),
+                          d->size.x * TILE_SIZE, d->size.y * TILE_SIZE };
+          draw_rock(r, d->color, hash3(p.tx, p.ty, g->seed ^ 0xB10C4A11u));
+        } break;
 
-  Vector2 tl = GetScreenToWorld2D((Vector2){ 0, 0 }, game->cam);
-  Vector2 br = GetScreenToWorld2D((Vector2){ (float)GetScreenWidth(), (float)GetScreenHeight() }, game->cam);
-
-  int x0 = (int)floorf(tl.x / cell), x1 = (int)floorf(br.x / cell);
-  int y0 = (int)floorf(tl.y / cell), y1 = (int)floorf(br.y / cell);
-
-  for (int cy = y0; cy <= y1; cy++) {
-    for (int cx = x0; cx <= x1; cx++) {
-      uint32_t h = hash2(cx, cy);
-      if (h % 4 == 0) continue;
-
-      float ox = (h & 0xFF) / 255.0f;
-      float oy = ((h >> 8) & 0xFF) / 255.0f;
-      float size = 1.0f + ((h >> 16) & 0x3) * 0.5f;
-      unsigned char b = 120 + ((h >> 20) & 0x7F);
-
-      DrawCircleV((Vector2){ (cx + ox) * cell, (cy + oy) * cell }, size, (Color){ b, b, b, 255 });
+        case OBJECT_COUNT:
+          break;
+      }
     }
   }
 }
@@ -544,8 +580,8 @@ static bool move_axis(Vector2* pos, float v, bool x_axis, float dt, uint32_t see
 
 void paavo_update(Paavo* p, uint32_t seed, float dt) {
   Vector2 move = Vector2Normalize((Vector2) {
-      IsKeyDown(KEY_F) - IsKeyDown(KEY_S),
-      IsKeyDown(KEY_D) - IsKeyDown(KEY_E)});
+      IsKeyDown(KEY_D) - IsKeyDown(KEY_A),
+      IsKeyDown(KEY_S) - IsKeyDown(KEY_W)});
   bool has_input = Vector2Length(move) > 0;
   if (has_input) p->facing = move;
 
@@ -616,26 +652,80 @@ void update(Game* game, float dt) {
       it->vel = Vector2Add(it->vel, Vector2Scale(dir, MAGNET_ACCEL * dt));
     }
 
-    it->vel = Vector2Scale(it->vel, expf(-ITEM_DRAG * dt));
+    it->vel = Vector2Scale(it->vel, exp(-ITEM_DRAG * dt));
     it->pos = Vector2Add(it->pos, Vector2Scale(it->vel, dt));
 
-    if (can_pick && dist < 10) {
+    if (can_pick && dist < 30) {
       it->stack.count = inv_add(game->paavo.inv, it->stack.type, it->stack.count);
       if (it->stack.count == 0) it->active = false;
     }
   }
 }
 
+void draw_paavo(const Paavo* p) {
+  const Color BODY       = { 32,  38,  56, 255 };
+  const Color BODY_LIGHT = { 52,  60,  84, 255 };
+  const Color BELLY      = { 240, 244, 250, 255 };
+
+  float angle = p->sliding ? p->heading : atan2f(p->facing.y, p->facing.x);
+  float speed = Vector2Length(p->vel);
+
+  DrawEllipse((int)p->pos.x + 2, (int)p->pos.y + 5, p->sliding ? 14 : 11, 8, ColorAlpha(BLACK, 0.25f));
+
+  rlPushMatrix();
+  rlTranslatef(p->pos.x, p->pos.y, 0);
+  rlRotatef(angle * RAD2DEG, 0, 0, 1);
+
+  if (p->sliding) {
+    float len = Clamp(speed / 25.0f, 0.0f, 20.0f);
+    Color streak = ColorAlpha((Color){ 110, 140, 180, 255 }, 0.6f);
+    for (int i = -1; i <= 1; i++)
+      DrawLineEx((Vector2){ -13, i * 4.0f }, (Vector2){ -13 - len, i * 4.0f }, 1.5f, streak);
+
+    DrawCircleV((Vector2){ -12, -2.5f }, 2.2f, ORANGE);
+    DrawCircleV((Vector2){ -12,  2.5f }, 2.2f, ORANGE);
+
+    for (int s = -1; s <= 1; s += 2) {
+      rlPushMatrix();
+      rlTranslatef(1, s * 6.5f, 0);
+      rlRotatef(s * -25.0f, 0, 0, 1);
+      DrawEllipse(-4, 0, 6, 2, BODY_LIGHT);
+      rlPopMatrix();
+    }
+
+    DrawEllipse(-1, 0, 11, 7, BODY);                        
+    DrawCircleV((Vector2){ 9, 0 }, 4.5f, BODY);             
+    DrawPoly((Vector2){ 13.5f, 0 }, 3, 3.0f, 0, ORANGE);    
+    DrawCircleV((Vector2){ 10, -2 }, 1.2f, WHITE);
+    DrawCircleV((Vector2){ 10,  2 }, 1.2f, WHITE);
+    DrawCircleV((Vector2){ 10.4f, -2 }, 0.6f, BLACK);
+    DrawCircleV((Vector2){ 10.4f,  2 }, 0.6f, BLACK);
+  } else {
+    float swing = sinf((float)GetTime() * 16.0f) * Clamp(speed / 150.0f, 0.0f, 1.0f) * 3.0f;
+    DrawCircleV((Vector2){ -5 + swing, -4 }, 2.4f, ORANGE);
+    DrawCircleV((Vector2){ -5 - swing,  4 }, 2.4f, ORANGE);
+
+    DrawEllipse(0, -10, 5, 2.2f, BODY_LIGHT);               
+    DrawEllipse(0,  10, 5, 2.2f, BODY_LIGHT);
+
+    DrawEllipse(0, 0, 8, 10, BODY);                         
+    DrawEllipse(3, 0, 5, 6.5f, BELLY);                      
+    DrawCircleV((Vector2){ 5, 0 }, 5.5f, BODY);             
+    DrawPoly((Vector2){ 11.5f, 0 }, 3, 3.5f, 0, ORANGE);    
+    DrawCircleV((Vector2){ 7.5f, -2.5f }, 1.3f, WHITE);
+    DrawCircleV((Vector2){ 7.5f,  2.5f }, 1.3f, WHITE);
+    DrawCircleV((Vector2){ 8.0f, -2.5f }, 0.6f, BLACK);
+    DrawCircleV((Vector2){ 8.0f,  2.5f }, 0.6f, BLACK);
+  }
+
+  rlPopMatrix();
+}
+
 void draw(Game* game) {
-  draw_stars(game);
   draw_tiles(game);
   draw_objects(game);
   draw_selection(game);
-  if (game->paavo.sliding) {
-    DrawCircleLinesV(game->paavo.pos, 11, RAYWHITE);
-  }
-
-  DrawCircleV(game->paavo.pos, 10, SKYBLUE);
+  draw_paavo(&game->paavo);
 
 
   for (int i = 0; i < MAX_ITEMS; i++) {
@@ -645,8 +735,8 @@ void draw(Game* game) {
 }
 
 int main(void) {
-  SetConfigFlags(FLAG_BORDERLESS_WINDOWED_MODE);
-  InitWindow(1920, 1080, "PAAVO");
+  SetConfigFlags(FLAG_FULLSCREEN_MODE);
+  InitWindow(800, 600, "PAAVO");
 
   srand(time(NULL));
 
@@ -663,16 +753,9 @@ int main(void) {
     .cam = cam,
     .seed = 69420
   };
-  spawn_item(&game, (Vector2){100, 500}, ITEM_FISH,     11);
-  spawn_item(&game, (Vector2){110, 500}, ITEM_CHEESE,   15);
-  spawn_item(&game, (Vector2){100, 510}, ITEM_SNOWBALL, 24);
-  spawn_item(&game, (Vector2){125, 495}, ITEM_APPLE,     5);
-  spawn_item(&game, (Vector2){90,  500}, ITEM_COIN,    344);
-  spawn_item(&game, (Vector2){95,  530}, ITEM_KEY,       3);
-  spawn_item(&game, (Vector2){75,  470}, ITEM_GEM,       3);
-  spawn_item(&game, (Vector2){85,  495}, ITEM_MUSHROOM,  8);
-  spawn_item(&game, (Vector2){100, 480}, ITEM_POTION,    2);
-  spawn_item(&game, (Vector2){80,  520}, ITEM_LOG,      10);
+  for (int i = 0; i < ITEM_COUNT; i++) {
+    spawn_item(&game, (Vector2){200 * i, 500}, i, i);
+  }
 
   while (!WindowShouldClose()) {
     float dt = GetFrameTime();
