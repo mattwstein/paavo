@@ -490,14 +490,6 @@ static void draw_rock(Rectangle r, Color base, uint32_t rs) {
     Vector2 e = { u[a].x * 0.55f + v[a].x * 0.45f, u[a].y * 0.55f + v[a].y * 0.45f };
     DrawLineEx(u[a], e, 1.0f, shade(base, -0.9f));
   }
-
-  int specks = (n > 9) ? 4 : 2;
-  for (int i = 0; i < specks; i++) {
-    float a = rnd01(rs, 100 + i) * 2.0f * PI;
-    float rr = sqrtf(rnd01(rs, 120 + i)) * 0.7f;
-    DrawRectangle((int)(uc.x + cosf(a) * rx * 0.58f * rr), (int)(uc.y + sinf(a) * ry * 0.58f * rr), 2, 2,
-        (i % 2 == 0) ? shade(base, -0.45f) : shade(base, 0.75f));
-  }
 }
 
 void draw_objects(const Game* g) {
